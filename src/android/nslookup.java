@@ -26,6 +26,7 @@ import org.minidns.record.PTR;
 import org.minidns.record.SOA;
 import org.minidns.record.TXT;
 
+import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.util.List;
 import java.util.Set;
@@ -282,8 +283,9 @@ public class nslookup extends CordovaPlugin {
 
           if (!result.wasSuccessful()) {
             responseJson.put("status", "failed");
-          } else {
-
+          }
+          else
+          {
             if (secure) {
               if (!result.isAuthenticData()) {
                 responseJson.put("secured", "false");
@@ -305,8 +307,8 @@ public class nslookup extends CordovaPlugin {
 
                 JSONObject obj = new JSONObject();
                 obj.put("type", "SRV");
-                obj.put("address", inetAddressRR.getInetAddress().toString());
-                obj.put("target", inetAddress.getHostName());
+                obj.put("address",inetAddress instanceof Inet6Address ? "["+inetAddress.getHostAddress()+"]":inetAddress.getHostAddress());
+                obj.put("target", srvRecord.srv.target);
                 obj.put("port", srvRecord.port);
                 responseJson.put("status", "success");
                 recordArray.put(obj);
@@ -351,6 +353,15 @@ public class nslookup extends CordovaPlugin {
 
     } catch (Exception e) {
       Log.e("cordova-plugin-nslookup", e != null ? e.getMessage() : "UNKNOWN ERROR");
+      try {
+        responseJson.put("status", "failed");
+        responseJson.put("error", e != null ? e.getMessage() : "UNKNOWN ERROR");
+        r.put("request", request);
+        r.put("response", responseJson);
+      }
+      catch (Exception ex)
+      {
+      }
     }
 
     return r;
