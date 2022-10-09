@@ -8,10 +8,14 @@ import org.apache.cordova.PluginResult;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.minidns.dnsmessage.DnsMessage;
+import org.minidns.dnsname.DnsName;
 import org.minidns.hla.DnssecResolverApi;
 import org.minidns.hla.ResolverApi;
 import org.minidns.hla.ResolverResult;
 import org.minidns.hla.SrvResolverResult;
+import org.minidns.hla.srv.SrvProto;
+import org.minidns.hla.srv.SrvService;
+import org.minidns.hla.srv.SrvType;
 import org.minidns.record.A;
 import org.minidns.record.AAAA;
 import org.minidns.record.CNAME;
@@ -26,9 +30,8 @@ import java.net.InetAddress;
 import java.util.List;
 import java.util.Set;
 
-public class Nslookup extends CordovaPlugin {
+public class nslookup extends CordovaPlugin {
 
-  private final String pluginName = "cordova-plugin-nslookup";
 
   private void resolve(final JSONArray data, final CallbackContext callbackContext) {
 
@@ -42,27 +45,29 @@ public class Nslookup extends CordovaPlugin {
     for (int n = 0; n < data.length(); n++) {
       String domain = "";
       String type = "";
-      String dns = "";
       String secure = "";
       try {
         JSONObject obj = data.optJSONObject(n);
-        domain = obj.optString("domain");
+        domain = obj.optString("query");
         type = obj.optString("type");
-
         secure = obj.optString("secure");
       } catch (Exception err) {
         try {
           domain = data.getString(n);
-          type = "";
+          type = "A";
         } catch (Exception e) {
 
         }
       }
       JSONObject result = null;
+      if (type.trim().length()==0)
+      {
+        type = "A";
+      }
 
-      result = doNslookup(domain, type,/*  dns,reverse, */secure.equalsIgnoreCase("true"));
+      result = doNslookup(domain, type, secure.equalsIgnoreCase("true"));
 
-      if (result!=null) {
+      if (result != null) {
         resultArray.put(result);
       }
     }
@@ -70,43 +75,39 @@ public class Nslookup extends CordovaPlugin {
   }
 
 
-
   private JSONObject doNslookup(String query, String type, boolean secure) {
 
-    Log.i("cordova-plugin-nslookup","doNslookup");
-    Log.i("cordova-plugin-nslookup",query);
+    Log.i("cordova-plugin-nslookup", "doNslookup");
+    Log.i("cordova-plugin-nslookup", query);
 
     JSONObject r = new JSONObject();
     JSONArray recordArray = new JSONArray();
-    JSONArray requestArray = new JSONArray();
+
     JSONObject request = new JSONObject();
     JSONObject responseJson = new JSONObject();
 
-    try{
+    try {
       request.put("query", query);
-      request.put("type",type);
-    }catch(Exception e){
+      request.put("type", type);
+    } catch (Exception e) {
 
     }
 
-
-      try {
-
-        if (type.equalsIgnoreCase("a")||type.equalsIgnoreCase("aaaa")) {
+    try {
+      if (query.trim().length() > 0) {
+        if (type.equalsIgnoreCase("a") || type.equalsIgnoreCase("aaaa")) {
 
           ResolverResult result;
 
           if (type.equalsIgnoreCase("a")) {
             result = secure ? DnssecResolverApi.INSTANCE.resolve(query, A.class) : ResolverApi.INSTANCE.resolve(query, A.class);
-          }
-          else {
+          } else {
             result = secure ? DnssecResolverApi.INSTANCE.resolve(query, AAAA.class) : ResolverApi.INSTANCE.resolve(query, AAAA.class);
           }
 
           if (!result.wasSuccessful()) {
             responseJson.put("status", "failed");
-          }
-          else {
+          } else {
 
             if (secure) {
               if (!result.isAuthenticData()) {
@@ -129,17 +130,15 @@ public class Nslookup extends CordovaPlugin {
           }
 
           responseJson.put("result", recordArray);
-          r.put("request",request);
-          r.put("response",responseJson);
+          r.put("request", request);
+          r.put("response", responseJson);
 
-        }
-        else if (type.equalsIgnoreCase("cname")) {
+        } else if (type.equalsIgnoreCase("cname")) {
           ResolverResult result = secure ? DnssecResolverApi.INSTANCE.resolve(query, CNAME.class) : ResolverApi.INSTANCE.resolve(query, CNAME.class);
 
           if (!result.wasSuccessful()) {
             responseJson.put("status", "failed");
-          }
-          else {
+          } else {
 
             if (secure) {
               if (!result.isAuthenticData()) {
@@ -155,7 +154,7 @@ public class Nslookup extends CordovaPlugin {
             for (CNAME itm : answers) {
               JSONObject obj = new JSONObject();
               obj.put("type", "CNAME");
-              obj.put("target",   itm.getTarget());
+              obj.put("target", itm.getTarget());
               responseJson.put("status", "success");
               recordArray.put(obj);
             }
@@ -167,8 +166,7 @@ public class Nslookup extends CordovaPlugin {
 
           if (!result.wasSuccessful()) {
             responseJson.put("status", "failed");
-          }
-          else {
+          } else {
 
             if (secure) {
               if (!result.isAuthenticData()) {
@@ -184,7 +182,7 @@ public class Nslookup extends CordovaPlugin {
             for (MX itm : answers) {
               JSONObject obj = new JSONObject();
               obj.put("type", "MX");
-              obj.put("target",    itm.target.toString());
+              obj.put("target", itm.target.toString());
               obj.put("priority", itm.priority);
               responseJson.put("status", "success");
               recordArray.put(obj);
@@ -196,8 +194,7 @@ public class Nslookup extends CordovaPlugin {
 
           if (!result.wasSuccessful()) {
             responseJson.put("status", "failed");
-          }
-          else {
+          } else {
 
             if (secure) {
               if (!result.isAuthenticData()) {
@@ -213,7 +210,7 @@ public class Nslookup extends CordovaPlugin {
             for (NS itm : answers) {
               JSONObject obj = new JSONObject();
               obj.put("type", "NS");
-              obj.put("target",    itm.getTarget());
+              obj.put("target", itm.getTarget());
               responseJson.put("status", "success");
               recordArray.put(obj);
             }
@@ -225,8 +222,7 @@ public class Nslookup extends CordovaPlugin {
 
           if (!result.wasSuccessful()) {
             responseJson.put("status", "failed");
-          }
-          else {
+          } else {
 
             if (secure) {
               if (!result.isAuthenticData()) {
@@ -242,7 +238,7 @@ public class Nslookup extends CordovaPlugin {
             for (PTR itm : answers) {
               JSONObject obj = new JSONObject();
               obj.put("type", "PTR");
-              obj.put("target",    itm.getTarget());
+              obj.put("target", itm.getTarget());
               responseJson.put("status", "success");
               recordArray.put(obj);
             }
@@ -254,8 +250,7 @@ public class Nslookup extends CordovaPlugin {
 
           if (!result.wasSuccessful()) {
             responseJson.put("status", "failed");
-          }
-          else {
+          } else {
 
             if (secure) {
               if (!result.isAuthenticData()) {
@@ -283,12 +278,11 @@ public class Nslookup extends CordovaPlugin {
             }
           }
         } else if (type.equalsIgnoreCase("SRV")) {
+          SrvResolverResult result = secure ? DnssecResolverApi.INSTANCE.resolveSrv(query) : ResolverApi.INSTANCE.resolveSrv(query);
 
-          SrvResolverResult result = DnssecResolverApi.INSTANCE.resolveSrv(query);
           if (!result.wasSuccessful()) {
             responseJson.put("status", "failed");
-          }
-          else {
+          } else {
 
             if (secure) {
               if (!result.isAuthenticData()) {
@@ -325,8 +319,7 @@ public class Nslookup extends CordovaPlugin {
 
           if (!result.wasSuccessful()) {
             responseJson.put("status", "failed");
-          }
-          else {
+          } else {
 
             if (secure) {
               if (!result.isAuthenticData()) {
@@ -350,11 +343,15 @@ public class Nslookup extends CordovaPlugin {
           }
         }
         responseJson.put("result", recordArray);
-        r.put("request",request);
-        r.put("response",responseJson);
-      } catch (Exception e) {
-        Log.e("cordova-plugin-nslookup", e.getMessage());
+      } else {
+        responseJson.put("status", "failed");
       }
+      r.put("request", request);
+      r.put("response", responseJson);
+
+    } catch (Exception e) {
+      Log.e("cordova-plugin-nslookup", e != null ? e.getMessage() : "UNKNOWN ERROR");
+    }
 
     return r;
   }
@@ -362,7 +359,7 @@ public class Nslookup extends CordovaPlugin {
   @Override
   public boolean execute(final String action, final JSONArray data, final CallbackContext callbackContext) {
 
-    if (action.equals("resolve")){
+    if (action.equals("resolve")) {
 
       cordova.getThreadPool().execute(new Runnable() {
         public void run() {

@@ -28,7 +28,7 @@
     ]
   },
   "deprecated": false,
-  "description": "cordova plugin add https://github.com/mightymop/cordova-plugin-nslookup.git\r ### 2. For Typescript add following code to main ts file: \r /// &lt;reference types=\"cordova-plugin-nslookup\" /&gt;<br/>\r ### 3. Usage:\r ```\r ",
+  "description": "cordova plugin add https://github.com/mightymop/cordova-plugin-nslookup.git\r ### 2. read README.md",
   "engines": [
     {
       "name": "cordova",

@@ -9,22 +9,22 @@
     <engine name="cordova" version=">=3.4.0"/>
   </engines>
 
-  <asset src="www/Nslookup.js" target="js/Nslookup.js"/>
+  <!--asset src="www/nslookup.js" target="js/nslookup.js"/-->
 
-  <js-module src="www/Nslookup.js" name="Nslookup">
+  <js-module src="www/nslookup.js" name="nslookup">
      <clobbers target="nslookup" />
   </js-module>
 
   <platform name="android">
 	<framework src="org.minidns:minidns-hla:1.0.4" />
     <config-file target="res/xml/config.xml" parent="/*">
-      <feature name="Nslookup">
-        <param name="android-package" value="de.mopsdom.nslookup.Nslookup"/>
+      <feature name="nslookup">
+        <param name="android-package" value="de.mopsdom.nslookup.nslookup"/>
 		<!--param name="onload" value="true"/-->
       </feature>
     </config-file>
 
-    <source-file src="src/android/Nslookup.java" target-dir="src/de/mopsdom/nslookup"/>
+    <source-file src="src/android/nslookup.java" target-dir="src/de/mopsdom/nslookup"/>
 
   </platform>
 
