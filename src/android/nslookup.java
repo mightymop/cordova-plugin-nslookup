@@ -4,18 +4,13 @@ import android.util.Log;
 
 import org.apache.cordova.CallbackContext;
 import org.apache.cordova.CordovaPlugin;
-import org.apache.cordova.PluginResult;
 import org.json.JSONArray;
 import org.json.JSONObject;
-import org.minidns.dnsmessage.DnsMessage;
-import org.minidns.dnsname.DnsName;
-import org.minidns.hla.DnssecResolverApi;
+import org.minidns.DnsClient;
+import org.minidns.dnsserverlookup.DnsServerLookupMechanism;
 import org.minidns.hla.ResolverApi;
 import org.minidns.hla.ResolverResult;
 import org.minidns.hla.SrvResolverResult;
-import org.minidns.hla.srv.SrvProto;
-import org.minidns.hla.srv.SrvService;
-import org.minidns.hla.srv.SrvType;
 import org.minidns.record.A;
 import org.minidns.record.AAAA;
 import org.minidns.record.CNAME;
@@ -28,11 +23,11 @@ import org.minidns.record.TXT;
 
 import java.net.Inet6Address;
 import java.net.InetAddress;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
 public class nslookup extends CordovaPlugin {
-
 
   private void resolve(final JSONArray data, final CallbackContext callbackContext) {
 
@@ -46,19 +41,23 @@ public class nslookup extends CordovaPlugin {
     for (int n = 0; n < data.length(); n++) {
       String domain = "";
       String type = "";
-      String secure = "";
+      String useFallbackDns = "";
+      ArrayList<String> dnsServers = new ArrayList<String>();
       try {
         JSONObject obj = data.optJSONObject(n);
         domain = obj.optString("query");
         type = obj.optString("type");
-        secure = obj.optString("secure");
+        useFallbackDns = obj.optString("useFallbackDns");
+
+        for(int i = 0; i < obj.getJSONArray("dnsserver").length(); i++){
+          dnsServers.add(obj.getJSONArray("dnsserver").getString(i));
+        }
       } catch (Exception err) {
+        useFallbackDns = "true";
+        type = "A";
         try {
           domain = data.getString(n);
-          type = "A";
-        } catch (Exception e) {
-
-        }
+        } catch (Exception e) {}
       }
       JSONObject result = null;
       if (type.trim().length()==0)
@@ -66,7 +65,7 @@ public class nslookup extends CordovaPlugin {
         type = "A";
       }
 
-      result = doNslookup(domain, type, secure.equalsIgnoreCase("true"));
+      result = doNslookup(domain, type, dnsServers, useFallbackDns.equalsIgnoreCase("true")||useFallbackDns.equalsIgnoreCase("1"));
 
       if (result != null) {
         resultArray.put(result);
@@ -75,8 +74,47 @@ public class nslookup extends CordovaPlugin {
     callbackContext.success(resultArray);
   }
 
+  private ResolverApi getApi(ArrayList<String> dnsServers, boolean useFallback) {
+    DnsClient client = new DnsClient();
 
-  private JSONObject doNslookup(String query, String type, boolean secure) {
+    DnsServerLookupMechanism dnsServerLookup = new DnsServerLookupMechanism(){
+
+      @Override
+      public int compareTo(DnsServerLookupMechanism o) {
+        return 0;
+      }
+
+      @Override
+      public String getName() {
+        return "CUSTOM_DNS_SERVER";
+      }
+
+      @Override
+      public int getPriority() {
+        return 0;
+      }
+
+      @Override
+      public boolean isAvailable() {
+        return true;
+      }
+
+      @Override
+      public List<String> getDnsServerAddresses() {
+        ArrayList<String> list = new ArrayList<String>();
+        list.addAll(dnsServers);
+        return list;
+      }
+    };
+    client.addDnsServerLookupMechanism(dnsServerLookup);
+
+    client.setUseHardcodedDnsServers(useFallback);
+
+    ResolverApi api = new ResolverApi(client);
+    return api;
+  }
+
+  private JSONObject doNslookup(String query, String type,ArrayList<String> dnsServers, boolean useFallback) {
 
     Log.i("cordova-plugin-nslookup", "doNslookup");
     Log.i("cordova-plugin-nslookup", query);
@@ -101,24 +139,14 @@ public class nslookup extends CordovaPlugin {
           ResolverResult result;
 
           if (type.equalsIgnoreCase("a")) {
-            result = secure ? DnssecResolverApi.INSTANCE.resolve(query, A.class) : ResolverApi.INSTANCE.resolve(query, A.class);
+            result = getApi(dnsServers,useFallback).resolve(query, A.class);
           } else {
-            result = secure ? DnssecResolverApi.INSTANCE.resolve(query, AAAA.class) : ResolverApi.INSTANCE.resolve(query, AAAA.class);
+            result = getApi(dnsServers,useFallback).resolve(query, AAAA.class);
           }
 
           if (!result.wasSuccessful()) {
             responseJson.put("status", "failed");
           } else {
-
-            if (secure) {
-              if (!result.isAuthenticData()) {
-                responseJson.put("secured", "false");
-              } else {
-                responseJson.put("secured", "true");
-              }
-            } else {
-              responseJson.put("secured", "false");
-            }
 
             Set answers = result.getAnswers();
             for (Object itm : answers) {
@@ -135,21 +163,11 @@ public class nslookup extends CordovaPlugin {
           r.put("response", responseJson);
 
         } else if (type.equalsIgnoreCase("cname")) {
-          ResolverResult result = secure ? DnssecResolverApi.INSTANCE.resolve(query, CNAME.class) : ResolverApi.INSTANCE.resolve(query, CNAME.class);
+          ResolverResult result = getApi(dnsServers,useFallback).resolve(query, CNAME.class);
 
           if (!result.wasSuccessful()) {
             responseJson.put("status", "failed");
           } else {
-
-            if (secure) {
-              if (!result.isAuthenticData()) {
-                responseJson.put("secured", "false");
-              } else {
-                responseJson.put("secured", "true");
-              }
-            } else {
-              responseJson.put("secured", "false");
-            }
 
             Set<CNAME> answers = result.getAnswers();
             for (CNAME itm : answers) {
@@ -163,21 +181,11 @@ public class nslookup extends CordovaPlugin {
 
         } else if (type.equalsIgnoreCase("mx")) {
 
-          ResolverResult result = secure ? DnssecResolverApi.INSTANCE.resolve(query, MX.class) : ResolverApi.INSTANCE.resolve(query, MX.class);
+          ResolverResult result = getApi(dnsServers,useFallback).resolve(query, MX.class);
 
           if (!result.wasSuccessful()) {
             responseJson.put("status", "failed");
           } else {
-
-            if (secure) {
-              if (!result.isAuthenticData()) {
-                responseJson.put("secured", "false");
-              } else {
-                responseJson.put("secured", "true");
-              }
-            } else {
-              responseJson.put("secured", "false");
-            }
 
             Set<MX> answers = result.getAnswers();
             for (MX itm : answers) {
@@ -191,21 +199,11 @@ public class nslookup extends CordovaPlugin {
           }
         } else if (type.equalsIgnoreCase("NS")) {
 
-          ResolverResult result = secure ? DnssecResolverApi.INSTANCE.resolve(query, NS.class) : ResolverApi.INSTANCE.resolve(query, NS.class);
+          ResolverResult result = getApi(dnsServers,useFallback).resolve(query, NS.class);
 
           if (!result.wasSuccessful()) {
             responseJson.put("status", "failed");
           } else {
-
-            if (secure) {
-              if (!result.isAuthenticData()) {
-                responseJson.put("secured", "false");
-              } else {
-                responseJson.put("secured", "true");
-              }
-            } else {
-              responseJson.put("secured", "false");
-            }
 
             Set<NS> answers = result.getAnswers();
             for (NS itm : answers) {
@@ -219,21 +217,12 @@ public class nslookup extends CordovaPlugin {
 
 
         } else if (type.equalsIgnoreCase("PTR")) {
-          ResolverResult result = secure ? DnssecResolverApi.INSTANCE.resolve(query, PTR.class) : ResolverApi.INSTANCE.resolve(query, PTR.class);
+
+          ResolverResult result = getApi(dnsServers,useFallback).resolve(query, PTR.class);
 
           if (!result.wasSuccessful()) {
             responseJson.put("status", "failed");
           } else {
-
-            if (secure) {
-              if (!result.isAuthenticData()) {
-                responseJson.put("secured", "false");
-              } else {
-                responseJson.put("secured", "true");
-              }
-            } else {
-              responseJson.put("secured", "false");
-            }
 
             Set<PTR> answers = result.getAnswers();
             for (PTR itm : answers) {
@@ -247,21 +236,11 @@ public class nslookup extends CordovaPlugin {
 
         } else if (type.equalsIgnoreCase("SOA")) {
 
-          ResolverResult result = secure ? DnssecResolverApi.INSTANCE.resolve(query, SOA.class) : ResolverApi.INSTANCE.resolve(query, SOA.class);
+          ResolverResult result = getApi(dnsServers,useFallback).resolve(query, SOA.class);
 
           if (!result.wasSuccessful()) {
             responseJson.put("status", "failed");
           } else {
-
-            if (secure) {
-              if (!result.isAuthenticData()) {
-                responseJson.put("secured", "false");
-              } else {
-                responseJson.put("secured", "true");
-              }
-            } else {
-              responseJson.put("secured", "false");
-            }
 
             Set<SOA> answers = result.getAnswers();
             for (SOA itm : answers) {
@@ -279,23 +258,14 @@ public class nslookup extends CordovaPlugin {
             }
           }
         } else if (type.equalsIgnoreCase("SRV")) {
-          SrvResolverResult result = secure ? DnssecResolverApi.INSTANCE.resolveSrv(query) : ResolverApi.INSTANCE.resolveSrv(query);
+
+          SrvResolverResult result = getApi(dnsServers,useFallback).resolveSrv(query);
 
           if (!result.wasSuccessful()) {
             responseJson.put("status", "failed");
           }
           else
           {
-            if (secure) {
-              if (!result.isAuthenticData()) {
-                responseJson.put("secured", "false");
-              } else {
-                responseJson.put("secured", "true");
-              }
-            } else {
-              responseJson.put("secured", "false");
-            }
-
             List<SrvResolverResult.ResolvedSrvRecord> srvRecords = result.getSortedSrvResolvedAddresses();
             // Loop over the domain names pointed by the SRV RR. MiniDNS will return the list
             // correctly sorted by the priority and weight of the related SRV RR.
@@ -317,21 +287,11 @@ public class nslookup extends CordovaPlugin {
           }
         } else if (type.equalsIgnoreCase("TXT")) {
 
-          ResolverResult result = secure ? DnssecResolverApi.INSTANCE.resolve(query, TXT.class) : ResolverApi.INSTANCE.resolve(query, TXT.class);
+          ResolverResult result = getApi(dnsServers,useFallback).resolve(query, TXT.class);
 
           if (!result.wasSuccessful()) {
             responseJson.put("status", "failed");
           } else {
-
-            if (secure) {
-              if (!result.isAuthenticData()) {
-                responseJson.put("secured", "false");
-              } else {
-                responseJson.put("secured", "true");
-              }
-            } else {
-              responseJson.put("secured", "false");
-            }
 
             Set<TXT> answers = result.getAnswers();
             for (TXT itm : answers) {

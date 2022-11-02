@@ -14,9 +14,9 @@ var query =  [
       {query: 'google.com',type: 'NS'}, 
       {query: '192.x.x.x.in-addr.arpa',type: 'PTR'}, 
       {query: 'google.com',type: 'SOA'}, 
-      {query: '_xmpp-server._tcp.gmail.com',type: 'SRV'},
+      {query: '_xmpp-server._tcp.gmail.com',type: 'SRV', dnsserver:["192.168.1.1","8.8.8.8"]},
       {query: 'google.com',type: 'TXT'}, 
-      {query: 'google.com',type: 'AAAA'}
+      {query: 'google.com',type: 'AAAA', dnsserver:["192.168.1.1","8.8.8.8"]}
     ];
          
 	function success(results) {
