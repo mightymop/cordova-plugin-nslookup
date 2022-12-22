@@ -114,7 +114,7 @@ public class nslookup extends CordovaPlugin {
     return api;
   }
 
-  private JSONObject doNslookup(String query, String type,ArrayList<String> dnsServers, boolean useFallback) {
+  public JSONObject doNslookup(String query, String type,ArrayList<String> dnsServers, boolean useFallback) {
 
     Log.i("cordova-plugin-nslookup", "doNslookup");
     Log.i("cordova-plugin-nslookup", query);
